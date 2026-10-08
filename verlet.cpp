@@ -158,21 +158,28 @@ void applyReflectiveBC3D(std::vector<Particle3D>& particles,
 void applyPeriodicBoundary(std::vector<Particle3D>& particles,
                            double Lx, double Ly, double Lz)
 {
-    for (auto& p : particles) {
+    // Limites superiores e inferiores centrados en 0
+    double half_Lx = Lx / 2.0;
+    double half_Ly = Ly / 2.0;
+    double half_Lz = Lz / 2.0;
 
-        if (p.x >= Lx)
+    for (auto& p : particles) {
+        // Eje X
+        if (p.x >= half_Lx)
             p.x -= Lx;
-        else if (p.x < 0.0)
+        else if (p.x < -half_Lx)
             p.x += Lx;
 
-        if (p.y >= Ly)
+        // Eje Y
+        if (p.y >= half_Ly)
             p.y -= Ly;
-        else if (p.y < 0.0)
+        else if (p.y < -half_Ly)
             p.y += Ly;
 
-        if (p.z >= Lz)
+        // Eje Z
+        if (p.z >= half_Lz)
             p.z -= Lz;
-        else if (p.z < 0.0)
+        else if (p.z < -half_Lz)
             p.z += Lz;
     }
 }

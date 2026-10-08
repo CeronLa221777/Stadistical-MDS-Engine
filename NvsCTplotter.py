@@ -1,12 +1,19 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path # <-- Nuestra herramienta estrella para rutas
 
 # 1. Rutas de los archivos
-input_path = "results/benchmark_CT_vs_N.dat"
-output_path = "results/benchmark_analysis_dual.png"
+results_dir = Path("results")
+input_path = results_dir / "benchmark_CT_vs_N.dat"
+output_path = results_dir / "benchmark_analysis_dual.png"
 
 # 2. Cargar los datos (ignora el encabezado con '#')
-data = np.loadtxt(input_path, comments="#")
+# np.loadtxt lee el objeto Path sin ningún problema
+try:
+    data = np.loadtxt(input_path, comments="#")
+except FileNotFoundError:
+    print(f"Error: No se encontró el archivo {input_path}")
+    exit()
 
 # --- SEPARAR LOS DATOS ---
 # Asumiendo que hiciste 6 corridas de NVE primero y 6 de NVT después.
@@ -70,6 +77,7 @@ ax2.grid(True)
 
 # 4. Guardar y mostrar
 plt.tight_layout()
+# savefig también procesa el objeto Path directamente
 plt.savefig(output_path, dpi=300, bbox_inches='tight')
 plt.show()
 

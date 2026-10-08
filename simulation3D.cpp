@@ -236,14 +236,15 @@ int main() {
     }
 
 
-// =========================================================================
-    // STEP 3: NOMBRADO Y GUARDADO DE ARCHIVOS
+    // =========================================================================
+    // STEP 3: NOMBRADO Y GUARDADO DE ARCHIVOS (MODIFICADO PARA MULTIPLATAFORMA)
     // =========================================================================
 
     // crear la carpeta "results" si no existe
     namespace fs = std::filesystem;
-    if(!fs::exists("results")){
-        fs::create_directory("results");
+    fs::path out_dir("results"); // <-- Nueva ruta base nativa
+    if(!fs::exists(out_dir)){
+        fs::create_directory(out_dir);
     }
 
     // generar los nombres automáticos para los archivos de datos
@@ -268,13 +269,13 @@ int main() {
     ss << (perturbation ? "_pert" : "_clean");                              
     ss << (periodicB ? "_period" : "_box");                               
 
-    // Construir nombres de archivo finales
+    // Construir nombres de archivo finales usando el operador '/'
     std::string suffix = ss.str();
-    std::string traj_filename = "results/tray_" + suffix + ".dat";
-    std::string obs_filename  = "results/obs_" + suffix + ".dat";
-    std::string rdf_filename  = "results/rdf_" + suffix + ".dat"; 
+    fs::path traj_filename = out_dir / ("tray_" + suffix + ".dat");
+    fs::path obs_filename  = out_dir / ("obs_" + suffix + ".dat");
+    fs::path rdf_filename  = out_dir / ("rdf_" + suffix + ".dat"); 
 
-    // Guardando los archivos
+    // Guardando los archivos (ofstream maneja automáticamente fs::path)
     std::ofstream traj(traj_filename); 
     std::ofstream obs(obs_filename); 
 
@@ -354,20 +355,20 @@ int main() {
 
     // --- GUARDAR RDF (Solo si es 3D) ---
     if (sim_dim == Dimension::D3 && rdf_snapshots > 0) {
-        normalizeAndSaveRDF3D(rdf_hist, rdf_filename, N, Lx, Ly, Lz, rdf_snapshots, dr_rdf);
+        // Enviar la ruta .string() a la función si esta espera un std::string, o mantener nativo si la función acepta std::filesystem::path
+        normalizeAndSaveRDF3D(rdf_hist, rdf_filename.string(), N, Lx, Ly, Lz, rdf_snapshots, dr_rdf);
     }
 
     std::cout << "Simulacion terminada. Tiempo de computo: " 
               << elapsed_seconds.count() << " segundos.\n";
 
     // Guardar los datos de N y Tiempo en un archivo de benchmark
-    std::string bench_filename = "results/benchmark_CT_vs_N.dat";
+    fs::path bench_filename = out_dir / "benchmark_CT_vs_N.dat"; // <-- Modificado
         
     // std::ios::app abre el archivo en modo "append" (añadir al final)
-    // Si el archivo no existe, lo crea.
     std::ofstream bench_file(bench_filename, std::ios::app); 
 
-        // Si el archivo está vacío (recién creado), le ponemos un encabezado
+    // Si el archivo está vacío (recién creado), le ponemos un encabezado
     std::ifstream bench_check(bench_filename);
     bench_check.seekg(0, std::ios::end);
     if (bench_check.tellg() == 0) {

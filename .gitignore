@@ -1,4 +1,6 @@
-# Binarios y ejecutables
+# ==========================================
+# 1. BINARIOS Y EJECUTABLES (C++)
+# ==========================================
 simulation
 simulationring
 calculoverletboundary2D
@@ -6,15 +8,25 @@ calculoverletboundary2D
 *.exe
 *.x
 
-# Archivos de datos de trayectorias (PESADOS)
+# ==========================================
+# 2. ARCHIVOS DE DATOS (PESADOS)
+# ==========================================
+# Ignorar todos los archivos de datos y coordenadas en cualquier lugar del proyecto
 *.dat
 *.xyz
 
-# Archivos multimedia (Resultados visuales)
+# ==========================================
+# 3. ARCHIVOS MULTIMEDIA (RESULTADOS VISUALES)
+# ==========================================
+# Ignorar imágenes y videos generados
 *.mp4
 *.gif
 *.png
 *.jpg
 
-#Carpetas  de experimentos numeradas
-0* - */
+# ==========================================
+# 4. CARPETAS DE EXPERIMENTOS NUMERADAS
+# ==========================================
+# Ignora cualquier carpeta en la raíz del proyecto que empiece con "0"
+# (por ejemplo: 01-experimento/, 02_prueba/, 003/, etc.)
+/0*/

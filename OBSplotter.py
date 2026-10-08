@@ -1,24 +1,29 @@
 import numpy as np
 import math
 import matplotlib.pyplot as plt 
-import os
+from pathlib import Path # <-- La joya de la corona para rutas universales
 
 # ==========================================
 # 1. CONFIGURACIÓN GENERAL
 # ==========================================
 suffix = "3D_NVT_SPHERE_N100_rho0.250RAD_v0.0_pert_period"
 
-obs_path = f"results/obs_{suffix}.dat"
-tray_path = f"results/tray_{suffix}.dat"
+# 1.1 Definimos el directorio base de forma nativa
+results_dir = Path("results")
 
-output_path_4panel = f"results/plot_energy_{suffix}.png"
-output_path_temp = f"results/plot_temp_{suffix}.png"
-output_path_tray = f"results/plot_tray_{suffix}.png"
+# 1.2 Construimos las rutas usando el operador '/'
+obs_path = results_dir / f"obs_{suffix}.dat"
+tray_path = results_dir / f"tray_{suffix}.dat"
+
+output_path_4panel = results_dir / f"plot_energy_{suffix}.png"
+output_path_temp = results_dir / f"plot_temp_{suffix}.png"
+output_path_tray = results_dir / f"plot_tray_{suffix}.png"
 
 # ==========================================
 # 2. LECTURA DE OBSERVABLES Y CÁLCULOS
 # ==========================================
 try:
+    # np.loadtxt lee objetos Path sin ningún problema en cualquier OS
     t_obs, K, U, E, T = np.loadtxt(obs_path, delimiter=" ", skiprows=1, unpack=True)
 except FileNotFoundError:
     print(f"Error: No se encontró el archivo {obs_path}")
@@ -61,6 +66,7 @@ axs[1, 1].plot(t_obs, delta_E_avg, 'g-', linewidth=1.5)
 axs[1, 1].axhline(0, color='black', lw=1); axs[1, 1].set_ylabel(r'$\Delta \langle E(t) \rangle$ (%)')
 axs[1, 1].set_xlabel('Time'); axs[1, 1].yaxis.tick_right(); axs[1, 1].yaxis.set_label_position("right"); axs[1, 1].grid(True)
 
+# Matplotlib también guarda usando el objeto Path directo
 fig1.savefig(output_path_4panel, dpi=300, bbox_inches='tight')
 
 # ==========================================
@@ -84,10 +90,10 @@ if "3D_" in suffix and "NVT" in suffix:
 # 5. FIGURA 3: TRAYECTORIAS (Solo para 1D y 2D)
 # ==========================================
 if "3D_" not in suffix:
-    # (Mantiene la lógica de lectura de trayectorias que ya teníamos para 1D/2D)
     try:
         t_tray = []
         particle_positions = {}  
+        # open() nativo de Python entiende las rutas Path perfectamente
         with open(tray_path, 'r') as f:
             lines = f.readlines()
         i = 0
@@ -123,11 +129,7 @@ if "3D_" not in suffix:
 
 plt.show()
 
-
-
-
-
-
-
-
+# Nota compañeros en Windows:
+# El comando comentado de abajo (xdg-open) es solo para Linux. Si alguna vez quieren hacer gifs en Windows
+# tendrán que usar la librería 'imageio' nativa de Python en lugar de comandos del sistema.
 #os.system("cd compound && convert -delay 10 -loop 0 *.png compound.gif && xdg-open compound.gif")

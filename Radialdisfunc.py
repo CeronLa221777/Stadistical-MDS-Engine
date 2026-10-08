@@ -1,8 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import os
-import glob
 import re
+from pathlib import Path # <-- Reemplaza a 'os' y 'glob'
 
 # ==========================================
 # 1. CONFIGURACIÓN DEL ANÁLISIS
@@ -13,28 +12,28 @@ target_ensemble = "NVE"
 # Si usas NVT, define la temperatura objetivo para el título
 T_target = 1.0  
 
-data_dir = "results"
-output_path = f"{data_dir}/plot_rdf_comparison_{target_ensemble}.png"
+# Definir el directorio usando pathlib
+data_dir = Path("results")
+output_path = data_dir / f"plot_rdf_comparison_{target_ensemble}.png"
 
 # ==========================================
 # 2. BÚSQUEDA Y LECTURA DE ARCHIVOS
 # ==========================================
-# Buscar todos los archivos de RDF en 3D que coincidan con el ensamble elegido
-search_pattern = os.path.join(data_dir, f"rdf_3D_{target_ensemble}_*.dat")
-file_list = glob.glob(search_pattern)
+# Buscar todos los archivos de RDF usando el glob integrado en pathlib
+file_list = list(data_dir.glob(f"rdf_3D_{target_ensemble}_*.dat"))
 
 if not file_list:
-    print(f"Error: No se encontraron archivos de correlación (rdf_3D_{target_ensemble}_*.dat) en '{data_dir}/'.")
+    print(f"Error: No se encontraron archivos de correlación (rdf_3D_{target_ensemble}_*.dat) en '{data_dir}'.")
     exit()
 
 # Lista para guardar tuplas (densidad, ruta_del_archivo)
 data_files = []
 
 for filepath in file_list:
-    filename = os.path.basename(filepath)
+    # filepath.name reemplaza a os.path.basename()
+    filename = filepath.name
     
     # Extraer la densidad (rho) usando expresiones regulares
-    # Busca "rho" seguido de números y un punto decimal
     match = re.search(r'rho([0-9]+\.[0-9]+)', filename)
     
     if match:
@@ -65,10 +64,11 @@ colors = plt.cm.plasma(np.linspace(0, 0.85, len(data_files)))
 # Iterar sobre los archivos ordenados y graficar
 for i, (density, filepath) in enumerate(data_files):
     try:
+        # np.loadtxt lee el objeto Path sin problemas
         r_rdf, g_r = np.loadtxt(filepath, skiprows=1, unpack=True)
         ax.plot(r_rdf, g_r, '-', color=colors[i], linewidth=2, label=rf'$\rho = {density:.3f}$')
     except Exception as e:
-        print(f"Error leyendo {filepath}: {e}")
+        print(f"Error leyendo {filepath.name}: {e}")
 
 # Línea base del gas ideal
 ax.axhline(1.0, color='gray', linestyle='--', alpha=0.7, label='Ideal Gas ($g(r)=1$)')
@@ -83,7 +83,7 @@ ax.grid(True, linestyle=':', alpha=0.6)
 # Leyenda compacta
 ax.legend(title="System Density", loc='lower right', fontsize='small', title_fontsize='medium', framealpha=0.9)
 
-# Guardar y mostrar
+# Guardar y mostrar (savefig acepta Path)
 plt.tight_layout()
 plt.savefig(output_path, dpi=300, bbox_inches='tight')
 print(f"¡Gráfica comparativa guardada exitosamente en: {output_path}!")
