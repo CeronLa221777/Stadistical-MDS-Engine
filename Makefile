@@ -1,21 +1,29 @@
-# 1. Variables (Makes it easy to change things later)
+# 1. Detección de Sistema Operativo (Magia multiplataforma)
+ifeq ($(OS),Windows_NT)
+    TARGET = sim3D.exe
+    CLEAN_CMD = del /Q /F *.o $(TARGET)
+else
+    TARGET = sim3D.x
+    CLEAN_CMD = rm -f $(OBJS) $(TARGET)
+endif
+
+# 2. Variables
 CXX = g++
 CXXFLAGS = -std=c++17 -O3 -Wall
-TARGET = sim3D.x
 SRCS = simulation3D.cpp verlet.cpp observables.cpp
 OBJS = $(SRCS:.cpp=.o)
 
-# 2. The default rule (What happens when you just type 'make')
+# 3. Regla por defecto
 all: $(TARGET)
 
-# 3. How to build the final executable
+# 4. Construir el ejecutable
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS)
 
-# 4. How to compile each individual .cpp file into an .o (object) file
+# 5. Compilar cada .cpp a .o
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# 5. A cleanup rule to delete compiled files so you can start fresh
+# 6. Limpieza multiplataforma
 clean:
-	rm -f $(OBJS) $(TARGET)
+	$(CLEAN_CMD)
