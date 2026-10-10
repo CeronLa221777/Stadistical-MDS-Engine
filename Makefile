@@ -2,14 +2,16 @@
 ifeq ($(OS),Windows_NT)
     TARGET = sim3D.exe
     CLEAN_CMD = del /Q /F *.o $(TARGET)
+    PYTHON_CMD = python
 else
     TARGET = sim3D.x
     CLEAN_CMD = rm -f $(OBJS) $(TARGET)
+    PYTHON_CMD = python3
 endif
 
 # 2. Variables
 CXX = g++
-CXXFLAGS = -std=c++17 -O3 -Wall
+CXXFLAGS = -std=c++17 -O3 -Wall -fopenmp
 SRCS = simulation3D.cpp verlet.cpp observables.cpp
 OBJS = $(SRCS:.cpp=.o)
 
@@ -24,6 +26,10 @@ $(TARGET): $(OBJS)
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# 6. Limpieza multiplataforma
+# 6. Generar gráficas maestras
+plot:
+	$(PYTHON_CMD) PlotterMaster.py
+
+# 7. Limpieza multiplataforma
 clean:
 	$(CLEAN_CMD)

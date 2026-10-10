@@ -2,14 +2,13 @@
 #define OBSERVABLES_HPP
 
 #include <vector>
-#include <string> // Necesario para los nombres de archivo
+#include <string> 
 #include "verlet.hpp"
 
-//aquí declararemos las variables de los observables a calcular
+
 
 double kineticEnergy3D(const std::vector<Particle3D>& particles);
 double potentialEnergy3D(const std::vector<Particle3D>& particles,
-                         const std::vector<double>& k,
                          bool usePBounds,
                          double Lx, double Ly, double Lz);
 
