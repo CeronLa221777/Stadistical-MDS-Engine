@@ -97,8 +97,8 @@ void applyReflectiveBC3D(std::vector<Particle3D>& particles,
                          double ymin, double ymax,
                          double zmin, double zmax)
 {
-
-    for (int i = 0; i < particles.size(); i++) {
+    int N = particles.size();
+    for (int i = 0; i < N; i++) { 
         auto& p = particles[i];
         if (p.x < xmin) { p.x = 2.0 * xmin - p.x; p.vx = -p.vx; }
         if (p.x > xmax) { p.x = 2.0 * xmax - p.x; p.vx = -p.vx; }
@@ -116,8 +116,8 @@ void applyPeriodicBoundary(std::vector<Particle3D>& particles,
     double half_Ly = Ly / 2.0;
     double half_Lz = Lz / 2.0;
 
-
-    for (int i = 0; i < particles.size(); i++) {
+    int N = particles.size(); 
+    for (int i = 0; i < N; i++) { 
         auto& p = particles[i];
         if (p.x >= half_Lx) p.x -= Lx;
         else if (p.x < -half_Lx) p.x += Lx;
