@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import re
 import os
 from pathlib import Path
-import concurrent.futures # <-- Para paralelizar usando múltiples núcleos
+import concurrent.futures 
 import time
 
 # Usamos un backend no interactivo por defecto en los workers para que el multiprocesamiento 
@@ -18,7 +18,7 @@ plt.switch_backend('agg')
 def plot_benchmark():
     results_dir = Path("results")
     input_path = results_dir / "benchmark_CT_vs_N.dat"
-    output_path = results_dir / "benchmark_analysis_dual.pdf" # <-- PDF
+    output_path = results_dir / "benchmark_analysis_dual.pdf" 
 
     try:
         data = np.loadtxt(input_path, comments="#")
@@ -28,7 +28,6 @@ def plot_benchmark():
     if len(data) < 2:
         return "[Aviso] No hay suficientes datos en el benchmark para graficar."
 
-    # Asumiendo tu lógica original de mitad NVE y mitad NVT
     mid = len(data) // 2
     data_NVE, data_NVT = data[:mid], data[mid:]
     
@@ -43,8 +42,10 @@ def plot_benchmark():
     # RAW
     ax1.plot(N_NVE, CT_NVE, marker='o', linestyle='-', color='blue', linewidth=2, label='NVE')
     ax1.plot(N_NVT, CT_NVT, marker='s', linestyle='-', color='red', linewidth=2, label='NVT')
-    ax1.set_xlabel('Number of Particles (N)'); ax1.set_ylabel('Computing Time (s)')
-    ax1.set_title('Raw Performance: N vs CT', fontweight='bold'); ax1.legend(); ax1.grid(True)
+    ax1.set_xlabel('Number of Particles (N)')
+    ax1.set_ylabel('Computing Time (s)')
+    ax1.set_title('Raw Performance: N vs CT', fontweight='bold')
+    ax1.legend(); ax1.grid(True)
 
     # LOG-LOG
     log_N_NVE, log_CT_NVE = np.log10(N_NVE), np.log10(CT_NVE)
@@ -58,17 +59,19 @@ def plot_benchmark():
     ax2.plot(log_N_NVE, (m_NVE * log_N_NVE) + b_NVE, 'b--', lw=2, label=f'NVE O(N^{m_NVE:.2f})')
     ax2.plot(log_N_NVT, (m_NVT * log_N_NVT) + b_NVT, 'r--', lw=2, label=f'NVT O(N^{m_NVT:.2f})')
 
-    ax2.set_xlabel('log10(N)'); ax2.set_ylabel('log10(CT)')
-    ax2.set_title('Linearization: Log-Log Plot', fontweight='bold'); ax2.legend(); ax2.grid(True)
+    ax2.set_xlabel('log10(N)')
+    ax2.set_ylabel('log10(CT)')
+    ax2.set_title('Linearization: Log-Log Plot', fontweight='bold')
+    ax2.legend(); ax2.grid(True)
 
     plt.tight_layout()
-    fig.savefig(output_path, format='pdf', bbox_inches='tight') # <-- FORMATO PDF
+    fig.savefig(output_path, format='pdf', bbox_inches='tight') 
     plt.close(fig)
     return f"¡Exito! Benchmark guardado en {output_path.name}"
 
 def plot_rdf(target_ensemble="NVE"):
     results_dir = Path("results")
-    output_path = results_dir / f"plot_rdf_comparison_{target_ensemble}.pdf" # <-- PDF
+    output_path = results_dir / f"plot_rdf_comparison_{target_ensemble}.pdf" 
     file_list = list(results_dir.glob(f"rdf_3D_{target_ensemble}_*.dat"))
 
     if not file_list:
@@ -96,13 +99,14 @@ def plot_rdf(target_ensemble="NVE"):
             pass
 
     ax.axhline(1.0, color='gray', linestyle='--', alpha=0.7, label='Ideal Gas')
-    ax.set_xlabel('Distance $r$', fontsize=12); ax.set_ylabel('$g(r)$', fontsize=12)
+    ax.set_xlabel('Distance $r$', fontsize=12)
+    ax.set_ylabel('$g(r)$', fontsize=12)
     ax.set_xlim(0, max_r); ax.set_ylim(0, max_g * 1.1)
     ax.grid(True, linestyle=':', alpha=0.6)
     ax.legend(title="Density", loc='lower right', framealpha=0.9)
 
     plt.tight_layout()
-    fig.savefig(output_path, format='pdf', bbox_inches='tight') # <-- FORMATO PDF
+    fig.savefig(output_path, format='pdf', bbox_inches='tight') 
     plt.close(fig)
     return f"¡Exito! RDF ({target_ensemble}) guardado en {output_path.name}"
 
@@ -111,9 +115,9 @@ def plot_observables(suffix):
     obs_path = results_dir / f"obs_{suffix}.dat"
     tray_path = results_dir / f"tray_{suffix}.dat"
     
-    out_4panel = results_dir / f"plot_energy_{suffix}.pdf" # <-- PDF
-    out_temp = results_dir / f"plot_temp_{suffix}.pdf"     # <-- PDF
-    out_tray = results_dir / f"plot_tray_{suffix}.pdf"     # <-- PDF
+    out_4panel = results_dir / f"plot_energy_{suffix}.pdf" 
+    out_temp = results_dir / f"plot_temp_{suffix}.pdf"     
+    out_tray = results_dir / f"plot_tray_{suffix}.pdf"     
 
     msgs = []
     
@@ -128,14 +132,40 @@ def plot_observables(suffix):
         K_avg, U_avg, E_avg, T_avg = np.cumsum(K)/n_steps, np.cumsum(U)/n_steps, np.cumsum(E)/n_steps, np.cumsum(T)/n_steps
         delta_E_avg = 100.0 * (E_avg - E_0) / np.abs(E_0) if E_0 != 0 else np.zeros_like(E)
 
-        fig1, axs = plt.subplots(2, 2, figsize=(10, 7), gridspec_kw={'wspace': 0.15, 'hspace': 0.15})
-        fig1.suptitle(f'Energy Analysis [{suffix}]', fontweight='bold')
-        axs[0,0].plot(t_obs, K, 'k-', alpha=0.7, label='$E_{kin}$'); axs[0,0].plot(t_obs, U, 'r-', alpha=0.7, label='$E_{pot}$'); axs[0,0].plot(t_obs, E, 'g-', lw=2, label='$E_{tot}$'); axs[0,0].grid(True); axs[0,0].legend()
-        axs[0,1].plot(t_obs, delta_E_inst, 'g-', lw=1); axs[0,1].axhline(0, color='k', lw=1); axs[0,1].yaxis.tick_right(); axs[0,1].grid(True)
-        axs[1,0].plot(t_obs, K_avg, 'k--'); axs[1,0].plot(t_obs, U_avg, 'r--'); axs[1,0].plot(t_obs, E_avg, 'g-', lw=2); axs[1,0].grid(True)
-        axs[1,1].plot(t_obs, delta_E_avg, 'g-', lw=1.5); axs[1,1].axhline(0, color='k', lw=1); axs[1,1].yaxis.tick_right(); axs[1,1].grid(True)
+        fig1, axs = plt.subplots(2, 2, figsize=(12, 8), gridspec_kw={'wspace': 0.25, 'hspace': 0.35})
+        fig1.suptitle(f'Energy Analysis [{suffix}]', fontweight='bold', fontsize=14)
         
-        fig1.savefig(out_4panel, format='pdf', bbox_inches='tight') # <-- FORMATO PDF
+        # [0,0] Energía Instantánea
+        axs[0,0].plot(t_obs, K, 'k-', alpha=0.7, label=r'$E_{kin}$')
+        axs[0,0].plot(t_obs, U, 'r-', alpha=0.7, label=r'$E_{pot}$')
+        axs[0,0].plot(t_obs, E, 'g-', lw=2, label=r'$E_{tot}$')
+        axs[0,0].set_title('Instantaneous Energy')
+        axs[0,0].set_xlabel('Time ($t$)'); axs[0,0].set_ylabel('Energy')
+        axs[0,0].grid(True); axs[0,0].legend()
+        
+        # [0,1] Fluctuación de Energía Instantánea (CON FÓRMULA)
+        axs[0,1].plot(t_obs, delta_E_inst, 'g-', lw=1)
+        axs[0,1].axhline(0, color='k', lw=1)
+        axs[0,1].set_title("Instantaneous Fluctuation\n" + r"$\Delta E = \frac{E(t) - E_0}{|E_0|} \times 100$")
+        axs[0,1].set_xlabel('Time ($t$)'); axs[0,1].set_ylabel(r'$\Delta E$ (%)')
+        axs[0,1].yaxis.tick_right(); axs[0,1].yaxis.set_label_position("right"); axs[0,1].grid(True)
+        
+        # [1,0] Energías Acumuladas Promedio
+        axs[1,0].plot(t_obs, K_avg, 'k--', label=r'$\langle E_{kin} \rangle$')
+        axs[1,0].plot(t_obs, U_avg, 'r--', label=r'$\langle E_{pot} \rangle$')
+        axs[1,0].plot(t_obs, E_avg, 'g-', lw=2, label=r'$\langle E_{tot} \rangle$')
+        axs[1,0].set_title('Cumulative Average Energy')
+        axs[1,0].set_xlabel('Time ($t$)'); axs[1,0].set_ylabel(r'$\langle E \rangle$')
+        axs[1,0].grid(True); axs[1,0].legend()
+        
+        # [1,1] Fluctuación de Energía Acumulada Promedio (CON FÓRMULA)
+        axs[1,1].plot(t_obs, delta_E_avg, 'g-', lw=1.5)
+        axs[1,1].axhline(0, color='k', lw=1)
+        axs[1,1].set_title("Average Fluctuation\n" + r"$\langle \Delta E \rangle = \frac{\langle E(t) \rangle - E_0}{|E_0|} \times 100$")
+        axs[1,1].set_xlabel('Time ($t$)'); axs[1,1].set_ylabel(r'$\langle \Delta E \rangle$ (%)')
+        axs[1,1].yaxis.tick_right(); axs[1,1].yaxis.set_label_position("right"); axs[1,1].grid(True)
+        
+        fig1.savefig(out_4panel, format='pdf', bbox_inches='tight') 
         plt.close(fig1)
         msgs.append(f"Energía -> {out_4panel.name}")
 
@@ -143,9 +173,12 @@ def plot_observables(suffix):
         if "NVT" in suffix:
             fig2, ax_t = plt.subplots(figsize=(8, 5))
             ax_t.plot(t_obs, T, color='purple', alpha=0.3, label='Instantaneous T')
-            ax_t.plot(t_obs, T_avg, color='darkviolet', lw=2, label='$\langle T \rangle$')
-            ax_t.set_title(f'Temperature Evolution [{suffix}]', fontweight='bold'); ax_t.grid(True); ax_t.legend()
-            fig2.savefig(out_temp, format='pdf', bbox_inches='tight') # <-- FORMATO PDF
+            ax_t.plot(t_obs, T_avg, color='darkviolet', lw=2, label=r'$\langle T \rangle$')
+            ax_t.set_title(f'Temperature Evolution [{suffix}]', fontweight='bold')
+            ax_t.set_xlabel('Time ($t$)')
+            ax_t.set_ylabel('Temperature ($T$)')
+            ax_t.grid(True); ax_t.legend()
+            fig2.savefig(out_temp, format='pdf', bbox_inches='tight') 
             plt.close(fig2)
             msgs.append(f"Temperatura -> {out_temp.name}")
 
@@ -176,11 +209,17 @@ def plot_observables(suffix):
                 for p_id, pos in particle_positions.items():
                     r = [math.sqrt(x**2 + y**2) for x, y in zip(pos['x'], pos['y'])]
                     ax3.plot(t_tray, r, '.', markersize=1.5)
+                ax3.set_ylabel('Radius ($r$)')
             else:
                 for p_id, pos in particle_positions.items():
                     ax3.plot(t_tray, pos['x'])
-            ax3.set_title(f'Trajectories [{suffix}]', fontweight='bold'); ax3.grid(True)
-            fig3.savefig(out_tray, format='pdf', bbox_inches='tight') # <-- FORMATO PDF
+                ax3.set_ylabel('Position ($x$)')
+                
+            ax3.set_title(f'Trajectories [{suffix}]', fontweight='bold')
+            ax3.set_xlabel('Time ($t$)')
+            ax3.grid(True)
+            
+            fig3.savefig(out_tray, format='pdf', bbox_inches='tight') 
             plt.close(fig3)
             msgs.append(f"Trayectoria -> {out_tray.name}")
         except Exception:
@@ -196,9 +235,7 @@ def get_latest_suffix():
     obs_files = list(results_dir.glob("obs_*.dat"))
     if not obs_files:
         return None
-    # Ordenar por fecha de modificación (el más reciente al final)
     latest_file = max(obs_files, key=os.path.getmtime)
-    # Extraer todo lo que está después de "obs_" y antes de ".dat"
     return latest_file.name[4:-4] 
 
 def main():
@@ -214,8 +251,6 @@ def main():
     choice = input("Elige una opción (1-4): ").strip()
     start_time = time.time()
 
-    # Preparamos el procesador en paralelo
-    # El ProcessPoolExecutor usará tantos núcleos como tenga tu computadora
     with concurrent.futures.ProcessPoolExecutor() as executor:
         futures = []
 
@@ -261,7 +296,6 @@ def main():
                 print("Selección inválida.")
                 return
 
-        # Esperamos a que todos los hilos paralelos terminen y recogemos sus respuestas
         print("\nGenerando PDFs en paralelo... Por favor espera...")
         for f in concurrent.futures.as_completed(futures):
             print(f.result())
@@ -269,6 +303,5 @@ def main():
     end_time = time.time()
     print(f"\n✅ ¡Todo listo! Tiempo total de ploteo: {end_time - start_time:.2f} segundos.")
 
-# Este bloque es OBLIGATORIO en Windows para usar Multiprocesamiento (ProcessPoolExecutor)
 if __name__ == '__main__':
     main()

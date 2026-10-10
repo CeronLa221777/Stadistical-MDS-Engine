@@ -14,7 +14,7 @@
 enum class Dimension {D1, D2, D3};      
 
 int main() {
-    constexpr double PI = 3.14159265358979323846;
+
     
     int N = 300;                    
     double rho = 0.20;              
