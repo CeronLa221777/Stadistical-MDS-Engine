@@ -17,7 +17,7 @@ int main() {
 
     
     int N = 300;                    
-    double rho = 0.20;              
+    double rho = 0.30;              
     double T_initial = 1.0;         
     
     // === definition of basic system conditions ===
