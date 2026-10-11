@@ -23,6 +23,7 @@ calculoverletboundary2D
 *.gif
 *.png
 *.jpg
+*.pdf
 
 # ==========================================
 # 4. CARPETAS DE EXPERIMENTOS NUMERADAS
