@@ -69,6 +69,68 @@ double potentialEnergy3D(const std::vector<Particle3D>& particles,
 
     return U;
 }
+//aqui meto la ecuacion de estado
+// ------------------------------------------------------------------
+// Virial de pares: W = sum_{i<j} f(r_ij) . r_ij
+// Para LJ (eps = sigma = 1): r*f(r) = 24 (2 r^-12 - r^-6)
+// El desplazamiento U(r_c) es una constante: no cambia la fuerza.
+// ------------------------------------------------------------------
+double virial3D(const std::vector<Particle3D>& particles,
+                bool usePBounds,
+                double Lx, double Ly, double Lz)
+{
+    double W = 0.0;
+    int N = particles.size();
+    double rcut2 = RCUT2;
+
+    #pragma omp parallel for schedule(dynamic) reduction(+:W)
+    for(int i = 0; i < N; i++){
+        for(int j = i + 1; j < N; j++){
+
+            double dx = particles[i].x - particles[j].x;
+            double dy = particles[i].y - particles[j].y;
+            double dz = particles[i].z - particles[j].z;
+
+            if(usePBounds){
+                dx -= Lx * std::round(dx / Lx);
+                dy -= Ly * std::round(dy / Ly);
+                dz -= Lz * std::round(dz / Lz);
+            }
+
+            double r2 = dx*dx + dy*dy + dz*dz;
+
+            if(r2 < rcut2){
+                double r2_inv  = 1.0 / r2;
+                double r6_inv  = r2_inv * r2_inv * r2_inv;
+                double r12_inv = r6_inv * r6_inv;
+
+                // r * f(r) = 24 * (2 r^-12 - r^-6)
+                W += 24.0 * (2.0 * r12_inv - r6_inv);
+            }
+        }
+    }
+
+    return W;
+}
+
+// ------------------------------------------------------------------
+// Presión instantánea: P = (2K + W) / (3V)
+// (rho*kB*T = (N/V)*(2K/3N) = 2K/(3V); masa = 1, kB = 1)
+// ------------------------------------------------------------------
+double pressure3D(const std::vector<Particle3D>& particles,
+                  bool usePBounds,
+                  double Lx, double Ly, double Lz)
+{
+    double V = Lx * Ly * Lz;
+    double K = kineticEnergy3D(particles);
+    double W = virial3D(particles, usePBounds, Lx, Ly, Lz);
+
+    return (2.0 * K + W) / (3.0 * V);
+} 
+//comentario para larry, como soy nuevo trabajando en estas cosas con git hub
+//y no puedo correrlo hasta que vos lo mires y añadas la no me acuerdo que cosa 
+//al main meti esta vaina primero a claude pa que mirara errores y 
+//me dijera si esta haciendo lo que creo que hace
 
 // ------------------------------------------------------------------
 // FUNCTION 1: g(r) Histogram Collector
