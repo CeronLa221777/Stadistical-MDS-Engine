@@ -13,11 +13,7 @@ double potentialEnergy3D(const std::vector<Particle3D>& particles,
                          double Lx, double Ly, double Lz);
 
 // Ecuacion de estado problema 4 numerico
-double potentialEnergy3D(const std::vector<Particle3D>& particles,
-                         bool usePBounds,
-                         double Lx, double Ly, double Lz);
 
-// ---- Presión por el teorema del virial (punto 4) ----
 // W = sum_{i<j} f(r_ij) . r_ij   (virial de pares, truncado en r_c)
 double virial3D(const std::vector<Particle3D>& particles,
                 bool usePBounds,
@@ -28,7 +24,6 @@ double pressure3D(const std::vector<Particle3D>& particles,
                   bool usePBounds,
                   double Lx, double Ly, double Lz);
 
-// Nuevas funciones para el g(r)
 
 
 // Nuevas funciones para el g(r)
