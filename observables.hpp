@@ -12,6 +12,20 @@ double potentialEnergy3D(const std::vector<Particle3D>& particles,
                          bool usePBounds,
                          double Lx, double Ly, double Lz);
 
+// Ecuacion de estado problema 4 numerico
+
+// W = sum_{i<j} f(r_ij) . r_ij   (virial de pares, truncado en r_c)
+double virial3D(const std::vector<Particle3D>& particles,
+                bool usePBounds,
+                double Lx, double Ly, double Lz);
+
+// P = rho*kB*T_inst + W/(3V),  con kB*T_inst = 2K/(3N)  =>  P = (2K + W)/(3V)
+double pressure3D(const std::vector<Particle3D>& particles,
+                  bool usePBounds,
+                  double Lx, double Ly, double Lz);
+
+
+
 // Nuevas funciones para el g(r)
 void updateRDF3D(const std::vector<Particle3D>& particles,
                  std::vector<double>& rdf_hist,
