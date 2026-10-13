@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 import concurrent.futures 
 import time
+from collections import defaultdict
+from matplotlib.lines import Line2D
 
 # Use a non-interactive backend by default in workers so multiprocessing
 # doesn't crash trying to open multiple windows simultaneously.
@@ -21,7 +23,8 @@ def plot_benchmark():
     output_path = results_dir / "benchmark_analysis_dual.pdf" 
 
     try:
-        data = np.loadtxt(input_path, comments="#")
+        # CORRECCIÓN: usecols=(0,1) fuerza a leer solo N y Computing_Time
+        data = np.loadtxt(input_path, comments="#", usecols=(0, 1))
     except FileNotFoundError:
         return f"[Warning] {input_path} not found. Skipping Benchmark."
 
@@ -72,46 +75,84 @@ def plot_benchmark():
 
 def plot_rdf(target_ensemble="NVE"):
     results_dir = Path("results")
-    output_path = results_dir / f"plot_rdf_comparison_{target_ensemble}.pdf" 
     file_list = list(results_dir.glob(f"rdf_3D_{target_ensemble}_*.dat"))
 
     if not file_list:
         return f"[Warning] No RDF files found for {target_ensemble}."
 
-    data_files = []
-    for filepath in file_list:
-        match = re.search(r'rho([0-9]+\.[0-9]+)', filepath.name)
-        if match:
-            data_files.append((float(match.group(1)), filepath))
-    
-    data_files.sort(key=lambda x: x[0])
+    if target_ensemble == "NVE":
+        # NVE: Single Plot
+        output_path = results_dir / f"plot_rdf_comparison_{target_ensemble}.pdf" 
+        data_files = []
+        for filepath in file_list:
+            match = re.search(r'rho([0-9]+\.[0-9]+)', filepath.name)
+            if match:
+                data_files.append((float(match.group(1)), filepath))
+        
+        data_files.sort(key=lambda x: x[0])
+        fig, ax = plt.subplots(figsize=(8, 5))
+        ax.set_title(f'Radial Distribution Function $g(r)$\nEnsemble {target_ensemble}', fontsize=14, fontweight='bold')
+        colors = plt.cm.plasma(np.linspace(0, 0.85, len(data_files)))
 
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.set_title(f'Radial Distribution Function $g(r)$\nEnsemble {target_ensemble}', fontsize=14, fontweight='bold')
-    colors = plt.cm.plasma(np.linspace(0, 0.85, len(data_files)))
+        max_r, max_g = 10, 3
+        for i, (density, filepath) in enumerate(data_files):
+            try:
+                r_rdf, g_r = np.loadtxt(filepath, skiprows=1, unpack=True)
+                ax.plot(r_rdf, g_r, '-', color=colors[i], linewidth=2, label=rf'$\rho = {density:.3f}$')
+                max_r, max_g = max(max_r, max(r_rdf)), max(max_g, max(g_r))
+            except Exception:
+                pass
 
-    max_r, max_g = 10, 3
-    for i, (density, filepath) in enumerate(data_files):
-        try:
-            r_rdf, g_r = np.loadtxt(filepath, skiprows=1, unpack=True)
-            ax.plot(r_rdf, g_r, '-', color=colors[i], linewidth=2, label=rf'$\rho = {density:.3f}$')
-            max_r, max_g = max(max_r, max(r_rdf)), max(max_g, max(g_r))
-        except Exception:
-            pass
+        ax.axhline(1.0, color='gray', linestyle='--', alpha=0.7, label='Ideal Gas')
+        ax.set_xlabel('Distance $r$'); ax.set_ylabel('$g(r)$')
+        ax.set_xlim(0, max_r); ax.set_ylim(0, max_g * 1.1)
+        ax.grid(True, linestyle=':', alpha=0.6); ax.legend(title="Density", loc='upper right', bbox_to_anchor=(1.25, 1))
+        plt.tight_layout(); fig.savefig(output_path, format='pdf', bbox_inches='tight') 
+        plt.close(fig)
+        return f"Success! RDF ({target_ensemble}) saved to {output_path.name}"
 
-    ax.axhline(1.0, color='gray', linestyle='--', alpha=0.7, label='Ideal Gas')
-    ax.set_xlabel('Distance $r$'); ax.set_ylabel('$g(r)$')
-    ax.set_xlim(0, max_r); ax.set_ylim(0, max_g * 1.1)
-    ax.grid(True, linestyle=':', alpha=0.6); ax.legend(title="Density", loc='lower right')
-    plt.tight_layout(); fig.savefig(output_path, format='pdf', bbox_inches='tight') 
-    plt.close(fig)
-    return f"Success! RDF ({target_ensemble}) saved to {output_path.name}"
+    else:
+        # NVT: Group by Isotherm (Temperature) to prevent overlapping mess
+        files_by_T = defaultdict(list)
+        for filepath in file_list:
+            match_rho = re.search(r'rho([0-9]+\.[0-9]+)', filepath.name)
+            match_T = re.search(r'_T([0-9]+\.[0-9]+)', filepath.name)
+            if match_rho and match_T:
+                rho = float(match_rho.group(1))
+                T_val = float(match_T.group(1))
+                files_by_T[T_val].append((rho, filepath))
+        
+        msgs = []
+        for T_val, data_files in files_by_T.items():
+            data_files.sort(key=lambda x: x[0])
+            fig, ax = plt.subplots(figsize=(8, 5))
+            ax.set_title(f'Radial Distribution Function $g(r)$\nEnsemble {target_ensemble} - Isotherm T = {T_val}', fontsize=14, fontweight='bold')
+            colors = plt.cm.plasma(np.linspace(0, 0.85, len(data_files)))
+
+            max_r, max_g = 10, 3
+            for i, (density, filepath) in enumerate(data_files):
+                try:
+                    r_rdf, g_r = np.loadtxt(filepath, skiprows=1, unpack=True)
+                    ax.plot(r_rdf, g_r, '-', color=colors[i], linewidth=2, label=rf'$\rho = {density:.3f}$')
+                    max_r, max_g = max(max_r, max(r_rdf)), max(max_g, max(g_r))
+                except Exception:
+                    pass
+
+            ax.axhline(1.0, color='gray', linestyle='--', alpha=0.7, label='Ideal Gas')
+            ax.set_xlabel('Distance $r$'); ax.set_ylabel('$g(r)$')
+            ax.set_xlim(0, max_r); ax.set_ylim(0, max_g * 1.1)
+            ax.grid(True, linestyle=':', alpha=0.6)
+            ax.legend(title="Density", loc='upper right', bbox_to_anchor=(1.25, 1), fontsize='small')
+            
+            out_path = results_dir / f"plot_rdf_comparison_{target_ensemble}_T{T_val}.pdf"
+            plt.tight_layout(); fig.savefig(out_path, format='pdf', bbox_inches='tight'); plt.close(fig)
+            msgs.append(f"Success! RDF NVT (T={T_val}) saved to {out_path.name}")
+        return "\n".join(msgs)
 
 def plot_observables(suffix):
     results_dir = Path("results")
     obs_path = results_dir / f"obs_{suffix}.dat"
     out_4panel = results_dir / f"plot_energy_{suffix}.pdf" 
-    out_cv = results_dir / f"plot_cv_{suffix}.pdf"
     msgs = []
     
     try:
@@ -157,45 +198,8 @@ def plot_observables(suffix):
         plt.close(fig1)
         msgs.append(f"Dynamics -> {out_4panel.name}")
 
-        # SPECIFIC HEAT
-        K2_avg = np.cumsum(K**2) / n_steps
-        U2_avg = np.cumsum(U**2) / n_steps
-        Var_K, Var_U = K2_avg - K_avg**2, U2_avg - U_avg**2
-
-        cut = max(50, len(n_steps) // 10)
-        valid = n_steps > cut
-        
-        if np.any(valid):
-            t_val, K_avg_val, T_avg_val = t_obs[valid], K_avg[valid], T_avg[valid]
-            Var_K_val, Var_U_val = Var_K[valid], Var_U[valid]
-
-            match_N = re.search(r'N(\d+)_', suffix)
-            N_part = int(match_N.group(1)) if match_N else 300
-
-            if "NVE" in suffix:
-                denominador = 1.0 - (N_part * Var_K_val / (K_avg_val * T_avg_val))
-                mask = denominador > 0.01 
-                Cv_run = np.full_like(t_val, np.nan)
-                Cv_run[mask] = (K_avg_val[mask] / T_avg_val[mask]) / denominador[mask]
-                label = r'$C_v$ (Lebowitz)'
-            else:
-                Cv_run = (K_avg_val / T_avg_val) + (N_part * Var_U_val / (T_avg_val**2))
-                label = r'$C_v$ (Fluctuations NVT)'
-
-            fig_cv, ax_cv = plt.subplots(figsize=(7, 4))
-            ax_cv.plot(t_val, Cv_run, color='teal', lw=2, label=label)
-            
-            if not np.all(np.isnan(Cv_run[-10:])):
-                Cv_final = np.nanmean(Cv_run[-10:])
-                ax_cv.axhline(Cv_final, color='orange', linestyle='--', label=f'Final $C_v \approx {Cv_final:.2f}$')
-
-            ax_cv.set_title(f'Specific Heat [{suffix}]', fontweight='bold')
-            ax_cv.set_xlabel('Time'); ax_cv.set_ylabel('$C_v$'); ax_cv.grid(True); ax_cv.legend()
-            fig_cv.savefig(out_cv, format='pdf', bbox_inches='tight'); plt.close(fig_cv)
-            msgs.append(f"Cv -> {out_cv.name}")
-
     except Exception as e:
-        msgs.append(f"Error processing observables for {suffix}: {e}")
+        pass # Handle silently in batch mode
 
     return "\n".join(msgs)
 
@@ -313,7 +317,9 @@ def plot_thermodynamics(target_ensemble="NVT"):
         unique_Ts = sorted(list(set([r['T_target'] for r in records])))
         unique_rhos = sorted(list(set([r['rho'] for r in records])))
 
-        # 1. ISOTHERMS
+        # ----------------------------------------------------
+        # 1. ISOTHERMS (Plotting vs Density for each Temperature)
+        # ----------------------------------------------------
         fig1, axs1 = plt.subplots(1, 3, figsize=(16, 5))
         fig1.suptitle(f'Isothermal Equations of State (NVT Ensemble)\nGlobal Method Deviation -> P: {err_P:.2f}%, U/N: {err_U:.2f}%', fontsize=14, fontweight='bold')
         colors_T = plt.cm.jet(np.linspace(0, 1, len(unique_Ts)))
@@ -322,21 +328,35 @@ def plot_thermodynamics(target_ensemble="NVT"):
             sub = sorted([r for r in records if r['T_target'] == T_val], key=lambda x: x['rho'])
             if not sub: continue
             r_vals = [s['rho'] for s in sub]
-            axs1[0].plot(r_vals, [s['P_dyn'] for s in sub], '.-', color=colors_T[i], label=f'T={T_val:.1f}')
-            axs1[1].plot(r_vals, [s['U_dyn'] for s in sub], '.-', color=colors_T[i])
-            axs1[2].plot(r_vals, [s['Cv_dyn'] for s in sub], '.-', color=colors_T[i])
+            
+            # Gráfico Comparativo: Dinámico (Círculo Continuo) vs g(r) (X Punteada)
+            axs1[0].plot(r_vals, [s['P_dyn'] for s in sub], 'o-', color=colors_T[i], markersize=4)
+            axs1[0].plot(r_vals, [s['P_gr'] for s in sub], 'x--', color=colors_T[i], alpha=0.7)
+            
+            axs1[1].plot(r_vals, [s['U_dyn'] for s in sub], 'o-', color=colors_T[i], markersize=4)
+            axs1[1].plot(r_vals, [s['U_gr'] for s in sub], 'x--', color=colors_T[i], alpha=0.7)
+            
+            axs1[2].plot(r_vals, [s['Cv_dyn'] for s in sub], 'o-', color=colors_T[i], label=f'T={T_val:.1f}')
+
+        # Leyenda personalizada para explicar los marcadores
+        custom_lines = [Line2D([0], [0], color='k', marker='o', linestyle='-', lw=1.5, label='Dynamic (Virial / Fluct)'),
+                        Line2D([0], [0], color='k', marker='x', linestyle='--', lw=1.5, alpha=0.7, label='Static from $g(r)$')]
 
         axs1[0].set_xlabel(r'Density ($\rho$)'); axs1[0].set_ylabel('Pressure ($P$)'); axs1[0].set_title(r'Isotherms: P vs $\rho$')
-        axs1[0].grid(True); axs1[0].legend(fontsize=8)
+        axs1[0].grid(True); axs1[0].legend(handles=custom_lines, loc='upper left', fontsize='small')
+        
         axs1[1].set_xlabel(r'Density ($\rho$)'); axs1[1].set_ylabel('Internal Energy ($U/N$)'); axs1[1].set_title(r'Isotherms: U/N vs $\rho$')
-        axs1[1].grid(True)
+        axs1[1].grid(True); axs1[1].legend(handles=custom_lines, loc='upper left', fontsize='small')
+        
         axs1[2].set_xlabel(r'Density ($\rho$)'); axs1[2].set_ylabel('Specific Heat ($C_v$)'); axs1[2].set_title(r'Isotherms: $C_v$ vs $\rho$')
-        axs1[2].grid(True)
+        axs1[2].grid(True); axs1[2].legend(fontsize='small', loc='upper right', bbox_to_anchor=(1.25, 1))
 
         out_iso_t = results_dir / f"plot_thermo_Isotherms_NVT.pdf"
         fig1.tight_layout(); fig1.savefig(out_iso_t, format='pdf', bbox_inches='tight'); plt.close(fig1)
 
-        # 2. ISOCHORES 
+        # ----------------------------------------------------
+        # 2. ISOCHORES (Plotting vs Temperature for each Density)
+        # ----------------------------------------------------
         fig2, axs2 = plt.subplots(1, 3, figsize=(16, 5))
         fig2.suptitle(f'Isochoric Thermodynamic Dependencies (NVT Ensemble)\nGlobal Method Deviation -> P: {err_P:.2f}%, U/N: {err_U:.2f}%', fontsize=14, fontweight='bold')
         colors_rho = plt.cm.viridis(np.linspace(0, 1, len(unique_rhos)))
@@ -345,16 +365,23 @@ def plot_thermodynamics(target_ensemble="NVT"):
             sub = sorted([r for r in records if r['rho'] == rho_val], key=lambda x: x['T_target'])
             if not sub: continue
             t_vals = [s['T_target'] for s in sub]
-            axs2[0].plot(t_vals, [s['P_dyn'] for s in sub], '.-', color=colors_rho[i], label=rf'$\rho$={rho_val:.2f}')
-            axs2[1].plot(t_vals, [s['U_dyn'] for s in sub], '.-', color=colors_rho[i])
-            axs2[2].plot(t_vals, [s['Cv_dyn'] for s in sub], '.-', color=colors_rho[i])
+            
+            axs2[0].plot(t_vals, [s['P_dyn'] for s in sub], 'o-', color=colors_rho[i], markersize=4)
+            axs2[0].plot(t_vals, [s['P_gr'] for s in sub], 'x--', color=colors_rho[i], alpha=0.7)
+            
+            axs2[1].plot(t_vals, [s['U_dyn'] for s in sub], 'o-', color=colors_rho[i], markersize=4)
+            axs2[1].plot(t_vals, [s['U_gr'] for s in sub], 'x--', color=colors_rho[i], alpha=0.7)
+            
+            axs2[2].plot(t_vals, [s['Cv_dyn'] for s in sub], 'o-', color=colors_rho[i], label=rf'$\rho$={rho_val:.2f}')
 
         axs2[0].set_xlabel(r'Temperature ($T$)'); axs2[0].set_ylabel('Pressure ($P$)'); axs2[0].set_title(r'Isochores: P vs $T$')
-        axs2[0].grid(True); axs2[0].legend(fontsize=8, loc='upper left', bbox_to_anchor=(1, 1))
+        axs2[0].grid(True); axs2[0].legend(handles=custom_lines, loc='upper left', fontsize='small')
+        
         axs2[1].set_xlabel(r'Temperature ($T$)'); axs2[1].set_ylabel('Internal Energy ($U/N$)'); axs2[1].set_title(r'Isochores: U/N vs $T$')
-        axs2[1].grid(True)
+        axs2[1].grid(True); axs2[1].legend(handles=custom_lines, loc='upper right', fontsize='small')
+        
         axs2[2].set_xlabel(r'Temperature ($T$)'); axs2[2].set_ylabel('Specific Heat ($C_v$)'); axs2[2].set_title(r'Isochores: $C_v$ vs $T$')
-        axs2[2].grid(True)
+        axs2[2].grid(True); axs2[2].legend(fontsize='small', loc='upper right', bbox_to_anchor=(1.25, 1))
 
         out_iso_r = results_dir / f"plot_thermo_Isochores_NVT.pdf"
         fig2.tight_layout(); fig2.savefig(out_iso_r, format='pdf', bbox_inches='tight'); plt.close(fig2)
