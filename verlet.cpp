@@ -5,22 +5,23 @@
 
 constexpr double RCUT2 = 6.25; 
 
-void computeAccelerations3D(const std::vector<Particle3D>& particles,
-                            std::vector<double>& acc_x,
-                            std::vector<double>& acc_y,
-                            std::vector<double>& acc_z,
-                            bool usePBounds,
-                            double Lx, double Ly, double Lz)
+double computeAccelerations3D(const std::vector<Particle3D>& particles,
+                              std::vector<double>& acc_x,
+                              std::vector<double>& acc_y,
+                              std::vector<double>& acc_z,
+                              bool usePBounds,
+                              double Lx, double Ly, double Lz)
 {   
     int N = particles.size();
     double rcut2 = RCUT2;
+    double W = 0.0; // Variable to accumulate the Virial
 
     std::fill(acc_x.begin(), acc_x.end(), 0.0);
     std::fill(acc_y.begin(), acc_y.end(), 0.0);
     std::fill(acc_z.begin(), acc_z.end(), 0.0);
 
-    
-    #pragma omp parallel for schedule(dynamic)
+    // We use reduction(+:W) so each OpenMP thread adds safely
+    #pragma omp parallel for schedule(dynamic) reduction(+:W)
     for(int i = 0; i < N; i++){
         for(int j = 0; j < N; j++){
             if (i == j) continue; 
@@ -40,31 +41,39 @@ void computeAccelerations3D(const std::vector<Particle3D>& particles,
             if (r2 < rcut2){
                 double r2_inv = 1.0 / r2;
                 double r6_inv = r2_inv * r2_inv * r2_inv;
+                
+                // Scalar force divided by r
                 double f_scalar = 24.0 * r6_inv * r2_inv * (2.0 * r6_inv - 1.0);
 
                 acc_x[i] += f_scalar*dx;
                 acc_y[i] += f_scalar*dy;
                 acc_z[i] += f_scalar*dz;
+
+                // Virial calculation: r * f(r) = 24 * (2 r^-12 - r^-6).
+                // Multiplied by 0.5 because the NxN loop evaluates each pair twice.
+                W += 0.5 * 24.0 * r6_inv * (2.0 * r6_inv - 1.0);
             }
         }
     }
+    
+    return W;
 }
 
-void velocityVerlet3D(std::vector<Particle3D>& particles, double dt,
-                      double xmin, double xmax,
-                      double ymin, double ymax,
-                      double zmin, double zmax,
-                      bool useBoundaries, bool usePBounds, 
-                      double Lx, double Ly, double Lz)
+double velocityVerlet3D(std::vector<Particle3D>& particles, double dt,
+                        double xmin, double xmax,
+                        double ymin, double ymax,
+                        double zmin, double zmax,
+                        bool useBoundaries, bool usePBounds, 
+                        double Lx, double Ly, double Lz)
 {
     int N = particles.size();
     std::vector<double> acc_x(N, 0.0);
     std::vector<double> acc_y(N, 0.0);
     std::vector<double> acc_z(N, 0.0);
 
+    // First force evaluation (The Virial here is not returned because it is not the final state of the step)
     computeAccelerations3D(particles, acc_x, acc_y, acc_z, usePBounds, Lx, Ly, Lz);         
     
-
     for(int i = 0; i < N; i++){
         particles[i].vx += 0.5 * acc_x[i] * dt;                 
         particles[i].vy += 0.5 * acc_y[i] * dt;
@@ -82,14 +91,16 @@ void velocityVerlet3D(std::vector<Particle3D>& particles, double dt,
         applyPeriodicBoundary(particles, Lx, Ly, Lz);  
     }
 
-    computeAccelerations3D(particles, acc_x, acc_y, acc_z, usePBounds, Lx, Ly, Lz);         
+    // Second force evaluation (Updated state). We save and return this Virial.
+    double step_Virial = computeAccelerations3D(particles, acc_x, acc_y, acc_z, usePBounds, Lx, Ly, Lz);         
     
-
     for(int i = 0; i < N; i++){
         particles[i].vx += 0.5 * acc_x[i] * dt;                 
         particles[i].vy += 0.5 * acc_y[i] * dt;
         particles[i].vz += 0.5 * acc_z[i] * dt;
     }
+
+    return step_Virial;
 }
 
 void applyReflectiveBC3D(std::vector<Particle3D>& particles,
@@ -177,7 +188,6 @@ void initializeMaxwellBoltzmann(std::vector<Particle3D>& particles,
     double vcm_y = sum_vy / N;
     double vcm_z = sum_vz / N;
 
-
     for (int i = 0; i < N; i++) {
         if (dim >= 1) particles[i].vx -= vcm_x;
         if (dim >= 2) particles[i].vy -= vcm_y;
@@ -191,7 +201,6 @@ void applyBerendsenThermostat(std::vector<Particle3D>& particles,
     int N = particles.size();
     double K = 0.0;
     
-
     for (int i = 0; i < N; i++) {
         K += 0.5 * (particles[i].vx*particles[i].vx + particles[i].vy*particles[i].vy + particles[i].vz*particles[i].vz);
     }
@@ -201,11 +210,57 @@ void applyBerendsenThermostat(std::vector<Particle3D>& particles,
 
     double ratio = dt / tau;
     double lambda = std::sqrt(1.0 + ratio * ((T_target / T_current) - 1.0));
-
    
     for (int i = 0; i < N; i++) {
         particles[i].vx *= lambda;
         particles[i].vy *= lambda;
         particles[i].vz *= lambda;
+    }
+}
+
+// ------------------------------------------------------------------
+// NUEVO: Inicialización en Red Cristalina (Lattice) para altas densidades
+// ------------------------------------------------------------------
+void initializeLattice(std::vector<Particle3D>& particles, double Lx, double Ly, double Lz, int dim) {
+    int N = particles.size();
+    
+    if (dim == 3) {
+        int n = std::ceil(std::cbrt(N)); // Partículas por dimensión
+        double ax = Lx / n;
+        double ay = Ly / n;
+        double az = Lz / n;
+        
+        int p = 0;
+        for (int i = 0; i < n && p < N; i++) {
+            for (int j = 0; j < n && p < N; j++) {
+                for (int k = 0; k < n && p < N; k++) {
+                    particles[p].x = -Lx/2.0 + ax/2.0 + i * ax;
+                    particles[p].y = -Ly/2.0 + ay/2.0 + j * ay;
+                    particles[p].z = -Lz/2.0 + az/2.0 + k * az;
+                    p++;
+                }
+            }
+        }
+    } else if (dim == 2) {
+        int n = std::ceil(std::sqrt(N));
+        double ax = Lx / n;
+        double ay = Ly / n;
+        
+        int p = 0;
+        for (int i = 0; i < n && p < N; i++) {
+            for (int j = 0; j < n && p < N; j++) {
+                particles[p].x = -Lx/2.0 + ax/2.0 + i * ax;
+                particles[p].y = -Ly/2.0 + ay/2.0 + j * ay;
+                particles[p].z = 0.0;
+                p++;
+            }
+        }
+    } else if (dim == 1) {
+        double ax = Lx / N;
+        for (int i = 0; i < N; i++) {
+            particles[i].x = -Lx/2.0 + ax/2.0 + i * ax;
+            particles[i].y = 0.0;
+            particles[i].z = 0.0;
+        }
     }
 }

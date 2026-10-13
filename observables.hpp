@@ -5,28 +5,21 @@
 #include <string> 
 #include "verlet.hpp"
 
-
-
 double kineticEnergy3D(const std::vector<Particle3D>& particles);
 double potentialEnergy3D(const std::vector<Particle3D>& particles,
                          bool usePBounds,
                          double Lx, double Ly, double Lz);
 
-// Ecuacion de estado problema 4 numerico
+// ------------------------------------------------------------------
+// Equation of state (Numerical calculation)
+// Instantaneous pressure: P = (2K + W) / (3V)
+// (The Virial W is now calculated in verlet.cpp)
+// ------------------------------------------------------------------
+double pressure3D(double K, double W, double Lx, double Ly, double Lz);
 
-// W = sum_{i<j} f(r_ij) . r_ij   (virial de pares, truncado en r_c)
-double virial3D(const std::vector<Particle3D>& particles,
-                bool usePBounds,
-                double Lx, double Ly, double Lz);
-
-// P = rho*kB*T_inst + W/(3V),  con kB*T_inst = 2K/(3N)  =>  P = (2K + W)/(3V)
-double pressure3D(const std::vector<Particle3D>& particles,
-                  bool usePBounds,
-                  double Lx, double Ly, double Lz);
-
-
-
-// Nuevas funciones para el g(r)
+// ------------------------------------------------------------------
+// Radial Distribution Function g(r) functions
+// ------------------------------------------------------------------
 void updateRDF3D(const std::vector<Particle3D>& particles,
                  std::vector<double>& rdf_hist,
                  double dr,

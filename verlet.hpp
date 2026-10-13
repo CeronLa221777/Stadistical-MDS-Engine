@@ -9,14 +9,16 @@ struct Particle3D {
     double vx, vy, vz;
 };
 
-void computeAccelerations3D(const std::vector<Particle3D>& particles,
+
+double computeAccelerations3D(const std::vector<Particle3D>& particles,
                             std::vector<double>& acc_x,
                             std::vector<double>& acc_y,
                             std::vector<double>& acc_z,
                             bool usePBounds,
                             double Lx, double Ly, double Lz);
 
-void velocityVerlet3D(std::vector<Particle3D> &particles,
+
+double velocityVerlet3D(std::vector<Particle3D> &particles,
                       double dt,
                       double xmin, double xmax,
                       double ymin, double ymax,
@@ -43,4 +45,5 @@ void initializeMaxwellBoltzmann(std::vector<Particle3D>& particles,
 void applyBerendsenThermostat(std::vector<Particle3D>& particles,
                               double T_target, double tau, double dt, int dim);
 
+void initializeLattice(std::vector<Particle3D>& particles, double Lx, double Ly, double Lz, int dim);
 #endif
