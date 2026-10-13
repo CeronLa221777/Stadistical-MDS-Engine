@@ -14,14 +14,15 @@ plt.switch_backend('agg')
 # ==========================================
 # 1. PLOTTING FUNCTIONS (PARALLEL WORKERS)
 # ==========================================
-
 def plot_benchmark():
     results_dir = Path("results")
     input_path = results_dir / "benchmark_CT_vs_N.dat"
     output_path = results_dir / "benchmark_analysis_dual.pdf" 
 
     try:
-        data = np.loadtxt(input_path, comments="#")
+        # CORRECCIÓN: usecols=(0,1) fuerza a leer solo N y Computing_Time
+        # ignorando si hay 4 o 5 columnas en las diferentes filas.
+        data = np.loadtxt(input_path, comments="#", usecols=(0, 1))
     except FileNotFoundError:
         return f"[Warning] {input_path} not found. Skipping Benchmark."
 
@@ -47,7 +48,7 @@ def plot_benchmark():
     ax1.set_title('Raw Performance: N vs CT', fontweight='bold')
     ax1.legend(); ax1.grid(True)
 
-    # LOG-LOG 
+    # LOG-LOG (Using suppress context for polyfit rank warnings on small datasets)
     log_N_NVE, log_CT_NVE = np.log10(N_NVE), np.log10(CT_NVE)
     log_N_NVT, log_CT_NVT = np.log10(N_NVT), np.log10(CT_NVT)
     
