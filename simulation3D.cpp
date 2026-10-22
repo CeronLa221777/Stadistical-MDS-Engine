@@ -15,12 +15,12 @@ enum class Dimension {D1, D2, D3};
 
 int main() {
     // ==========================================
-    // 1. USER INPUTS (INTERACTIVE MENU)
+    // 1. USER INPUTS & INTERACTIVE MENU
     // ==========================================
-    int N;
-    std::cout << "Enter the number of particles (Warning: Recommended between 250 and 550): ";
-    std::cin >> N;
-    if (N < 250 || N > 550) {
+    int base_N;
+    std::cout << "Enter the base number of particles (e.g., 300): ";
+    std::cin >> base_N;
+    if (base_N < 250 || base_N > 550) {
         std::cout << "[Notice] Operating outside the recommended range (250-550).\n";
     }
 
@@ -35,6 +35,33 @@ int main() {
     bool periodicB = (bc_choice == 'y' || bc_choice == 'Y');
     bool reflectiveB = !periodicB;
 
+    char cv_choice;
+    std::cout << "Keep Volume constant and vary N across densities? (y/n): ";
+    std::cin >> cv_choice;
+    bool constant_volume = (cv_choice == 'y' || cv_choice == 'Y');
+    
+    // We standardize the fixed volume using the base N at a reference density of 0.7
+    double fixed_V = base_N / 0.7; 
+    if (constant_volume) {
+        std::cout << "  [+] Fixed Volume set to " << fixed_V << "\n";
+    }
+
+    bool iso_energetic = false;
+    if (!use_thermostat) {
+        char iso_choice;
+        std::cout << "Initialize NVE with precise Target Total Energy (E/N) instead of T_init? (y/n): ";
+        std::cin >> iso_choice;
+        iso_energetic = (iso_choice == 'y' || iso_choice == 'Y');
+    }
+
+    int run_mode;
+    std::cout << "\nSelect Sweep Resolution Mode:\n";
+    std::cout << "1) Isochore Focus  (Cv vs T/E)   -> 5 Densities, 15 Temp/Energy points\n";
+    std::cout << "2) Isotherm Focus  (Cv vs rho)   -> 15 Densities, 5 Temp/Energy points\n";
+    std::cout << "3) Single Run      (1 specific point)\n";
+    std::cout << "Choice: ";
+    std::cin >> run_mode;
+
     // === definition of basic system conditions ===
     Dimension sim_dim = Dimension::D3;  
     bool static_initialization = false; 
@@ -47,7 +74,6 @@ int main() {
     double dt = 0.001;
     int steps = 50000;
 
-    // --- SAMPLING FREQUENCIES (OPTIMIZATION) ---
     int sample_interval_obs = 100;    
     int sample_interval_traj = 100;   
     int sample_interval_rdf = 100;    
@@ -63,34 +89,68 @@ int main() {
     }
 
     // ==========================================
-    // 2. DENSITY & TEMPERATURE NESTED LOOPS
+    // 2. DYNAMIC DENSITY & TARGET ARRAYS
     // ==========================================
-    std::vector<double> densities = {0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2};
-    std::vector<double> temperatures;
+    std::vector<double> densities;
+    std::vector<double> targets; 
 
-    if (use_thermostat) {
-        // 10 temperaturas para el estudio termodinámico completo en NVT
-        temperatures = {0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4};
+    if (run_mode == 1) {
+        // ISOCHORE FOCUS: 5 Curves (Densities), 15 X-axis points (Temperatures/Energies)
+        densities = {0.2, 0.5, 0.8, 1.0, 1.2};
+        if (iso_energetic) {
+            targets = {-3.0, -2.5, -2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0};
+        } else {
+            targets = {0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.7, 1.9, 2.1, 2.4};
+        }
+    } else if (run_mode == 2) {
+        // ISOTHERM FOCUS: 15 X-axis points (Densities), 5 Curves (Temperatures/Energies)
+        densities = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5};
+        if (iso_energetic) {
+            targets = {-2.0, -1.0, 0.0, 1.0, 2.0};
+        } else {
+            targets = {0.8, 1.0, 1.2, 1.5, 2.0};
+        }
     } else {
-        // NVE por defecto corre a una energía inicial dada por T=1.0
-        temperatures = {1.0}; 
+        // SINGLE RUN
+        double d_val, t_val;
+        std::cout << "Enter exact Density (e.g., 0.7): ";
+        std::cin >> d_val;
+        std::cout << (iso_energetic ? "Enter exact Target E/N (e.g., -1.5): " : "Enter exact Target T (e.g., 1.0): ");
+        std::cin >> t_val;
+        densities = {d_val};
+        targets = {t_val};
     }
 
-    int total_runs = densities.size() * temperatures.size();
+    int total_runs = densities.size() * targets.size();
     std::cout << "\nStarting multi-parameter simulation suite (" << total_runs << " runs)...\n";
     std::cout << "=========================================================\n";
 
-    for (double current_T : temperatures) {
+    // ==========================================
+    // 3. MAIN SIMULATION LOOPS
+    // ==========================================
+    for (double current_target : targets) {
         for (double rho : densities) {
             
-            double T_initial = current_T;         
-            double T_target = current_T;
-
             double L = 0.0;
-            switch (sim_dim){
-                case Dimension::D1: L = N / rho; break;
-                case Dimension::D2: L = std::sqrt(N/rho); break;
-                case Dimension::D3: L = std::pow(N / rho, 1.0/3.0); break;
+            int N = base_N;
+
+            // Geometry calculation based on Constant Volume mode
+            if (constant_volume) {
+                if (sim_dim == Dimension::D3) {
+                    L = std::cbrt(fixed_V);
+                } else if (sim_dim == Dimension::D2) {
+                    L = std::sqrt(fixed_V);
+                } else {
+                    L = fixed_V;
+                }
+                N = std::round(rho * fixed_V);
+                if (N < 2) N = 2; // Safeguard for extremely low densities
+            } else {
+                switch (sim_dim){
+                    case Dimension::D1: L = N / rho; break;
+                    case Dimension::D2: L = std::sqrt(N/rho); break;
+                    case Dimension::D3: L = std::pow(N / rho, 1.0/3.0); break;
+                }
             }
 
             double Lx = L, Ly = L, Lz = L;
@@ -101,7 +161,8 @@ int main() {
             double y_min = -Ly/2.0, y_max = Ly/2.0;
             double z_min = -Lz/2.0, z_max = Lz/2.0;
 
-            std::cout << "\n-> Simulating T = " << current_T << " | rho = " << rho << " | Box L = " << L << "...\n";
+            std::cout << "\n-> Simulating " << (iso_energetic ? "E/N" : "T") << " = " << current_target 
+                      << " | rho = " << rho << " | N = " << N << " | Box L = " << L << "...\n";
 
             std::vector<Particle3D> particles(N);
             std::mt19937 gen(42); 
@@ -113,8 +174,8 @@ int main() {
             // ==========================================
             // SMART INITIALIZATION: Random vs Lattice
             // ==========================================
-            if (rho < 0.7) {
-                std::cout << "      [+] Low density detected. Using Random Insertion...\n";
+            if (use_thermostat && rho < 0.7) {
+                std::cout << "      [+] Low density detected (NVT). Using Random Insertion...\n";
                 for(int i = 0; i < N; i++){
                     double base_x, base_y, base_z;
                     switch(sim_dim){
@@ -136,10 +197,34 @@ int main() {
                     }
                 }
             } else {
-                std::cout << "      [+] High density (>= 0.7) detected. Using Crystalline Lattice...\n";
+                std::cout << "      [+] Using Crystalline Lattice initialization for structural stability...\n";
                 initializeLattice(particles, Lx, Ly, Lz, current_dim);
             }
             
+            // ==========================================
+            // THERMAL / ENERGETIC VELOCITY SETUP
+            // ==========================================
+            double T_initial = current_target;         
+            double T_target = current_target; // Used only if NVT
+
+            if (iso_energetic && !use_thermostat) {
+                // Calculate lattice potential energy to find required kinetic energy
+                double U_init = potentialEnergy3D(particles, periodicB, Lx, Ly, Lz);
+                double u_init = U_init / N;
+                double k_req = current_target - u_init; // K/N = E/N - U/N
+                
+                if (k_req <= 0.0) {
+                    std::cout << "      [!] Target E/N (" << current_target << ") is mathematically impossible "
+                              << "from lattice state (U/N = " << u_init << "). Skipping.\n";
+                    continue; // Skip this simulation run entirely
+                }
+                
+                // T = (2 * K) / (d_f * N). Since k_req is K/N:
+                T_initial = (2.0 * k_req) / d_f;
+                std::cout << "      [+] Iso-Energetic Target Matched: U/N=" << u_init 
+                          << " -> Set T_init=" << T_initial << " to reach E/N=" << current_target << "\n";
+            }
+
             if (static_initialization) {
                 for (auto& p : particles) {
                     p.vx = 0.0; p.vy = 0.0; p.vz = 0.0;
@@ -148,6 +233,9 @@ int main() {
                 initializeMaxwellBoltzmann(particles, T_initial, current_dim, gen);
             }
 
+            // ==========================================
+            // FILE NAMING CONVENTION
+            // ==========================================
             std::stringstream ss;
             switch (sim_dim){
                 case Dimension::D1: ss << "1D_"; break;
@@ -158,11 +246,12 @@ int main() {
             ss << (use_thermostat ? "NVT_" : "NVE_");
             ss << "N" << N << "_rho" << std::fixed << std::setprecision(3) << rho;  
             
-            // Actualizado para reflejar la temperatura correcta en el archivo
             if (static_initialization) {
                 ss << "_Tinit0";
+            } else if (iso_energetic) {
+                ss << "_Einit" << std::fixed << std::setprecision(1) << current_target;
             } else {
-                ss << "_T" << std::fixed << std::setprecision(1) << current_T;
+                ss << "_T" << std::fixed << std::setprecision(1) << current_target;
             }         
             
             ss << (periodicB ? "_period" : "_box");                               
@@ -238,17 +327,16 @@ int main() {
             std::ifstream bench_check(bench_filename);
             bench_check.seekg(0, std::ios::end);
             if (bench_check.tellg() == 0) {
-                bench_file << "# N Computing_Time(s) Steps Density Temp\n";
+                bench_file << "# N Computing_Time(s) Steps Density Target\n";
             }
             
-            // Añadí la temperatura al benchmark para tener registro
-            bench_file << N << " " << elapsed_seconds.count() << " " << steps << " " << rho << " " << current_T << "\n";
+            bench_file << N << " " << elapsed_seconds.count() << " " << steps << " " << rho << " " << current_target << "\n";
 
             bench_file.close();
             traj.close();
             obs.close();
-        } // End of Density Loop
-    } // End of Temperature Loop
+        } 
+    } 
 
     std::cout << "\nAll simulations completed successfully!\n";
     return 0;
